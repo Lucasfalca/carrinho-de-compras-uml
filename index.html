@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Carrinho de compras</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f6f5ef;color:#183d34;font:16px system-ui}main{max-width:800px;margin:8vh auto;padding:24px}h1{font:clamp(38px,7vw,64px) Georgia,serif;margin:0 0 28px}section{padding:24px;background:white;border:1px solid #d0d8ce;border-radius:12px;margin:14px 0}form{display:flex;gap:12px;flex-wrap:wrap;align-items:end}label{display:grid;gap:6px;font-size:14px}input,select,button{font:inherit;padding:10px;border-radius:5px;border:1px solid #87958a}input[type=number]{width:106px}button{background:#185947;color:white;cursor:pointer}ul{padding-left:0;list-style:none}li{padding:10px 0;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;gap:10px}li button{background:white;color:#185947}output{display:block;margin-top:20px;line-height:1.6;font-weight:600}h2{margin-top:0}
+</style>
+<main><h1>Carrinho de compras</h1><section><h2>Adicionar item</h2>
+<form id="form"><label>Produto<input name="nome" required maxlength="100"></label>
+<label>Preço (R$)<input name="preco" type="number" required min="0.01" step="0.01"></label>
+<label>Quantidade<input name="quantidade" type="number" value="1" min="1" step="1" required></label>
+<button>Adicionar</button></form></section><section><h2>Seu carrinho</h2><ul id="lista"></ul>
+<label>Modalidade de frete<select id="modo"><option value="padrao">Padrão</option><option value="expresso">Expresso</option></select></label>
+<output id="resumo" aria-live="polite"></output></section></main>
+<script>
+const itens = [];
+const moeda = valor => Number(valor).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+let versao = 0;
+async function atualizar() {
+  const atual = ++versao;
+  lista.replaceChildren();
+  itens.forEach((item,i) => {
+    const linha = document.createElement('li');
+    linha.textContent = item.quantidade + ' × ' + item.nome + ' · ' + moeda(item.preco) + ' cada';
+    const remover = document.createElement('button');
+    remover.textContent = 'Remover';
+    remover.onclick = () => { itens.splice(i,1); atualizar(); };
+    linha.append(remover);
+    lista.append(linha);
+  });
+  if (!itens.length) { resumo.textContent = 'Adicione um item para calcular o frete.'; return; }
+  resumo.textContent = 'Calculando…';
+  try {
+    const resposta = await fetch('/cotacao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens,modalidade:modo.value})});
+    const dados = await resposta.json();
+    if (atual !== versao) return;
+    resumo.textContent = resposta.ok ? 'Subtotal ' + moeda(dados.subtotal) + ' · Frete ' + moeda(dados.frete) + ' · Total ' + moeda(dados.total) : dados.erro;
+  } catch { if(atual === versao) resumo.textContent = 'Falha na conexão com o servidor.'; }
+}
+form.onsubmit = evento => {
+  evento.preventDefault();
+  const campos = new FormData(form);
+  const nome = campos.get('nome').trim();
+  if (!nome) { form.elements.nome.focus(); return; }
+  itens.push({nome,preco:campos.get('preco'),quantidade:Number(campos.get('quantidade'))});
+  form.reset(); atualizar();
+};
+modo.onchange = atualizar;
+atualizar();
+</script></html>
